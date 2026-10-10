@@ -4,9 +4,11 @@ import { useRenderer } from "@opentui/react";
 import { CommandMenu } from "./command-menu";
 import { StatusBar } from "./status-bar";
 import type { KeyBinding } from "@opentui/core";
+import { useToast } from "../providers/toast";
 
 import type { Command } from "./command-menu/types";
 import { useCommandMenu } from "./command-menu/use-command-menu";
+import { useKeyboardLayer } from "../providers/keyboard-layer";
 
 type InputBarProps = {
     onSubmit: (text:string)=>void,
@@ -24,6 +26,8 @@ export function Inputbar({onSubmit, disabled}:InputBarProps){
     const textareaRef = useRef<TextareaRenderable>(null);
     const onSubmitRef = useRef<() => void>(() => {});
     const renderer = useRenderer();
+    const toast = useToast();
+    const {isTopLayer,setResponder} = useKeyboardLayer();
 
     const {
         ShowCommandMenu,
@@ -51,12 +55,13 @@ export function Inputbar({onSubmit, disabled}:InputBarProps){
         if(command.action){
             command.action({
                 exit: ()=> renderer.destroy(),
+                toast,
             })    
         }
         else {
             textarea.insertText(command.value + " ");
         }
-    }, []);
+    }, [renderer, toast]);
 
     const handleCommandExecute = useCallback((index:number)=> {
         const command = resolveCommand(index);
@@ -97,6 +102,20 @@ export function Inputbar({onSubmit, disabled}:InputBarProps){
         handleSubmit();
     }
 
+    // ctrl + c dismiss
+    useEffect(()=>{
+        setResponder("base", ()=>{
+            if(disabled) return false;
+            const textarea = textareaRef.current;
+            if(textarea && textarea.plainText.length > 0){
+                textarea.setText('');
+                return true;
+            }
+            return false;
+        })
+        return () => setResponder("base", null);
+    },[disabled, setResponder])
+
     return (
         <box width='100%' alignItems="center">
             <box width="100%" borderColor="cyan" border={["left"]}>
@@ -115,7 +134,7 @@ export function Inputbar({onSubmit, disabled}:InputBarProps){
                         onSelect={setSelectedIndex}
                         onExexute={handleCommandExecute}/>
                     </box>)}
-                    <textarea focused={!disabled} 
+                    <textarea focused={!disabled && (isTopLayer("base")|| isTopLayer("command"))} 
                     ref={textareaRef }
                     width="100%"
                     onContentChange={handleTextareaContentChange}

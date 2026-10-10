@@ -3,7 +3,7 @@ import { KeyEvent, ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react"; 
 import { filterCommands } from "./filter-commands";
 import type { Command } from "./types";
-
+import { useKeyboardLayer } from "../../providers/keyboard-layer";
 
 type useCommandMenuReturn = {
     ShowCommandMenu : boolean;
@@ -21,10 +21,16 @@ export function useCommandMenu():useCommandMenuReturn {
     const [SelectedIndex,setSelectedIndex] = useState(0);
     const [ShowCommandMenu,setShowCommandMenu] = useState(false);
     const scrollRef = useRef<ScrollBoxRenderable>(null);
+    const {push,pop,isTopLayer} = useKeyboardLayer();
 
     const commandQuery = ShowCommandMenu && textValue.startsWith('/') ? textValue.slice(1) : "";
 
     const filteredCommands = useMemo(()=> filterCommands(commandQuery), [commandQuery]);
+
+    const close = () => {
+        setShowCommandMenu(false);
+        pop("command");
+    }
 
     const handleContentChange = (text:string) => {
         setTextValue(text);
@@ -38,25 +44,30 @@ export function useCommandMenu():useCommandMenuReturn {
         const prefix = text.startsWith("/") ? text.slice(1) : null;
         if (prefix !== null && !prefix.includes(" ")) {
             setShowCommandMenu(true);
+            push("command", ()=> {
+                close();
+                return true;
+            })
         } else {
-            setShowCommandMenu(false); 
+            close();
         } 
     };
 
     const resolveCommand = (index:number): Command | undefined => {
         const command = filteredCommands[index];
         if (command) {
-            setShowCommandMenu(false);
+            close();
         }
         return command;
     }
 
      useKeyboard((key) => {
-        if(!ShowCommandMenu) return ;
+        if(!ShowCommandMenu || !isTopLayer("command")) return ;
 
         if(key.name === "escape") {
             key.preventDefault();
             setShowCommandMenu(false);
+            pop("command")
         } else if (key.name === "up"){
             key.preventDefault();
             setSelectedIndex((i:number)=> {
